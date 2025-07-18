@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mapa de Políticas de Carbono</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; font-family: 'Roboto', sans-serif; overflow: hidden; }
+    #map { height: 100%; width: 100%; background-color: #aadaff; }
+    #search-container { position: absolute; top: 94px; left: 50%; transform: translateX(-50%); width: 450px; max-width: calc(100% - 440px); z-index: 1001; background-color: #fff; border-radius: 28px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); display: flex; align-items: center; padding: 0 8px 0 20px; }
+    #countrySearch { flex-grow: 1; height: 52px; border: none; background: transparent; outline: none; font-size: 16px; color: #333; }
+    #countrySearch::placeholder { color: #757575; }
+    #searchButton { width: 40px; height: 40px; border: none; background-color: transparent; cursor: pointer; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    #searchButton:hover { background-color: #f0f0f0; }
+    .search-icon { width: 24px; height: 24px; fill: #5f6368; }
+    #info-panel { position: absolute; top: 94px; left: 20px; width: 380px; background: #fff; border-radius: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; padding: 25px; box-sizing: border-box; transition: transform 0.3s ease-out; }
+    #info-panel.hidden { transform: translateX(calc(-100% - 30px)); }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .flag-and-name { display: flex; align-items: center; gap: 15px; }
+    #info-flag { font-size: 40px; line-height: 1; }
+    #info-panel h2 { margin: 0; font-size: 24px; color: #202124; }
+    #info-gdp-container { text-align: right; color: #3c4043; padding-left: 10px; }
+    #info-gdp-container .label { font-size: 12px; color: #5f6368; }
+    #info-gdp-container .value { font-size: 18px; font-weight: 500; }
+    #info-panel p { margin: 12px 0; font-size: 16px; color: #5f6368; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; }
+    #info-panel p:last-child { border-bottom: none; }
+    #info-panel p strong { color: #3c4043; font-weight: 500; margin-right: 10px; }
+    .system-info { color: #3c4043; font-weight: 500; justify-content: flex-start; }
+    .year-label { font-size: 12px; color: #9e9e9e; font-weight: 400; white-space: nowrap; }
+    .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+    .status-dot.Ativo { background-color: #4CAF50; }
+    .status-dot.Inativo { background-color: #F44336; }
+    .country-pin { border-radius: 50%; width: 10px; height: 10px; border: 1px solid rgba(0,0,0,0.2); box-shadow: 0 1px 3px rgba(0,0,0,0.4); cursor: pointer; }
+    .country-pin.has-sce { background-color: #1A73E8; }
+    .country-pin.no-sce { background-color: #9E9E9E; }
+    .leaflet-tooltip { border-radius: 4px; background-color: rgba(0, 0, 0, 0.75); color: white; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif; padding: 4px 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <div id="search-container">
+    <input type="text" id="countrySearch" placeholder="Pesquisar país..."><button id="searchButton" aria-label="Buscar"><svg class="search-icon" focusable="false" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg></button>
+  </div>
+  <div id="info-panel" class="hidden">
+    <div class="panel-header">
+      <div class="flag-and-name">
+          <span id="info-flag"></span>
+          <h2 id="info-country-name"></h2>
+      </div>
+      <div id="info-gdp-container">
+          <div class="label">PIB per capita <span class="year-label" id="info-gdp-year"></span></div>
+          <div class="value" id="info-gdp"></div>
+      </div>
+    </div>
+    <div id="panel-content">
+        <p class="system-info">
+          <span id="info-system-type"></span>
+        </p>
+        <p>
+          <span><strong>Emissão de CO₂ per capita:</strong> <span id="info-co2-capita"></span></span>
+          <span class="year-label" id="info-co2-year"></span>
+        </p>
+        <p>
+            <span><strong>Status NDC:</strong> <span id="info-ndc-status"></span></span>
+            <span class="year-label" id="info-ndc-date"></span>
+        </p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    var southWest = L.latLng(-85, -180);
+    var northEast = L.latLng(85, 180);
+    var bounds = L.latLngBounds(southWest, northEast);
+
+    var map = L.map('map', {
+        zoomControl: false, maxBounds: bounds, maxBoundsViscosity: 1.0, minZoom: 3, maxZoom: 6
+    }).setView([20, 0], 3);
+    
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', noWrap: true
+    }).addTo(map);
+
+    const infoPanel = document.getElementById('info-panel');
+    const panelContent = document.getElementById('panel-content');
+    const flagEl = document.getElementById('info-flag');
+    const countryNameEl = document.getElementById('info-country-name');
+    const systemTypeEl = document.getElementById('info-system-type');
+    const co2CapitaEl = document.getElementById('info-co2-capita');
+    const gdpEl = document.getElementById('info-gdp');
+    const co2YearEl = document.getElementById('info-co2-year');
+    const gdpYearEl = document.getElementById('info-gdp-year');
+    const ndcStatusEl = document.getElementById('info-ndc-status');
+    const ndcDateEl = document.getElementById('info-ndc-date');
+    
+    const markers = {};
+
+    function createCountryIcon(hasSce) {
+        return L.divIcon({
+            className: `country-pin ${hasSce ? 'has-sce' : 'no-sce'}`,
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+        });
+    }
+
+    function getFlagEmoji(countryCode) {
+        if (!countryCode || countryCode.length !== 2) return '';
+        const codePoints = countryCode.toUpperCase().split('').map(char => 127397 + char.charCodeAt());
+        return String.fromCodePoint(...codePoints);
+    }
+
+    function openInfoPanel(pais) {
+        flagEl.textContent = getFlagEmoji(pais.iso);
+        countryNameEl.textContent = pais.nome;
+
+        const gdpContainer = gdpEl.closest('#info-gdp-container');
+        const co2Para = co2CapitaEl.closest('p');
+        const ndcPara = ndcStatusEl.closest('p');
+        
+        panelContent.style.display = 'block';
+
+        if (pais.tipo) {
+            systemTypeEl.textContent = `${pais.tipo} Adotado em ${pais.ano}`;
+        } else {
+            systemTypeEl.textContent = "Não possui um Sistema de Comércio de Emissões (SCE)";
+        }
+        
+        const fields = [
+            { el: gdpContainer, data: pais.gdp, valueEl: gdpEl, yearEl: gdpYearEl, format: d => '$' + d.toLocaleString('en-US', { maximumFractionDigits: 0 }), year: pais.gdp_ano },
+            { el: co2Para, data: pais.co2, valueEl: co2CapitaEl, yearEl: co2YearEl, format: d => d.toFixed(2) + ' toneladas', year: pais.co2_ano },
+            { el: ndcPara, data: pais.ndc_status, valueEl: ndcStatusEl, yearEl: ndcDateEl, format: d => `${d} <span class="status-dot ${d}"></span>`, year: pais.ndc_date, yearFormat: d => `(${d})` }
+        ];
+
+        fields.forEach(field => {
+            if (field.data != null) {
+                field.el.style.display = (field.el === gdpContainer) ? 'block' : 'flex';
+                field.valueEl.innerHTML = field.format(field.data);
+                if (field.yearEl && field.year) {
+                   field.yearEl.textContent = field.yearFormat ? field.yearFormat(field.year) : `(${field.year})`;
+                } else if (field.yearEl) {
+                    field.yearEl.textContent = '';
+                }
+            } else {
+                field.el.style.display = 'none';
+            }
+        });
+
+        infoPanel.classList.remove('hidden');
+    }
+
+    function searchCountry() {
+        const searchInput = document.getElementById('countrySearch').value.toLowerCase().trim();
+        const marker = markers[searchInput];
+        if (marker) {
+            map.setView(marker.getLatLng(), 6);
+            marker.fire('click');
+        } else {
+            alert("País não encontrado. Verifique se o nome está correto e tente novamente.");
+        }
+    }
+
+    map.on('click', function() {
+        if (!infoPanel.classList.contains('hidden')) {
+            infoPanel.classList.add('hidden');
+        }
+    });
+
+    infoPanel.addEventListener('click', function(event) {
+        event.stopPropagation();
+    });
+
+    document.getElementById('searchButton').addEventListener('click', searchCountry);
+    document.getElementById('countrySearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') { searchCountry(); }
+    });
+    
+    // Lista completa de países com todos os dados combinados
+    const allCountriesData = [
+      {"nome":"Alemanha","iso":"DE","coords":[51.0,9.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":63578.14,"gdp_ano":2023,"co2":7.051025,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Áustria","iso":"AT","coords":[47.3333,13.3333],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":65015.133,"gdp_ano":2023,"co2":6.415725,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Bélgica","iso":"BE","coords":[50.8333,4.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":64185.848,"gdp_ano":2023,"co2":7.1177025,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Bulgária","iso":"BG","coords":[43.0,25.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2007,"gdp":33403.375,"gdp_ano":2023,"co2":5.311196,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Canadá","iso":"CA","coords":[60.0,-95.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE) apenas em nível subnacional","ano":2007,"gdp":55918.93,"gdp_ano":2023,"co2":13.977411,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/02/2025"},
+      {"nome":"Cazaquistão","iso":"KZ","coords":[48.0,68.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2013,"gdp":34703.234,"gdp_ano":2023,"co2":12.550943,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"27/06/2023"},
+      {"nome":"China","iso":"CN","coords":[35.0,105.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE) apenas em nível subnacional","ano":2013,"gdp":22137.6,"gdp_ano":2023,"co2":8.366814,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"28/10/2021"},
+      {"nome":"Chipre","iso":"CY","coords":[35.0,33.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":53420.684,"gdp_ano":2023,"co2":5.3342433,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Coreia do Sul","iso":"KR","coords":[37.0,127.5],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2015,"gdp":50572.25,"gdp_ano":2023,"co2":11.158091,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"23/12/2021"},
+      {"nome":"Croácia","iso":"HR","coords":[45.1667,15.5],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2013,"gdp":41116.87,"gdp_ano":2023,"co2":4.497998,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Dinamarca","iso":"DK","coords":[56.0,10.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":72097.305,"gdp_ano":2023,"co2":4.5837965,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Eslováquia","iso":"SK","coords":[48.6667,19.5],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":39290.434,"gdp_ano":2023,"co2":5.5706987,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Eslovênia","iso":"SI","coords":[46.0,15.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":48243.94,"gdp_ano":2023,"co2":5.347735,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Espanha","iso":"ES","coords":[40.0,-4.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":47141.543,"gdp_ano":2023,"co2":4.6255174,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Estados Unidos","iso":"US","coords":[38.0,-97.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE) apenas em nível subnacional","ano":2009,"gdp":74577.51,"gdp_ano":2023,"co2":14.299027,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/12/2024"},
+      {"nome":"Estônia","iso":"EE","coords":[59.0,26.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":42471.824,"gdp_ano":2023,"co2":7.3282313,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Finlândia","iso":"FI","coords":[64.0,26.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":57063.523,"gdp_ano":2023,"co2":5.6456437,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"França","iso":"FR","coords":[46.0,2.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":55441.188,"gdp_ano":2023,"co2":4.101157,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Grécia","iso":"GR","coords":[39.0,22.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":36905.453,"gdp_ano":2023,"co2":5.388754,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Hungria","iso":"HU","coords":[47.0,20.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":40543.992,"gdp_ano":2023,"co2":4.1491246,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Indonésia","iso":"ID","coords":[-5.0,120.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2023,"gdp":13889.883,"gdp_ano":2023,"co2":2.6075745,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"23/09/2022"},
+      {"nome":"Irlanda","iso":"IE","coords":[53.0,-8.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":114922.39,"gdp_ano":2023,"co2":6.6260405,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Islândia","iso":"IS","coords":[65.0,-18.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2008,"gdp":67255.67,"gdp_ano":2023,"co2":9.708997,"co2_ano":2023,"ndc_status":"Inativo","ndc_date":""},
+      {"nome":"Itália","iso":"IT","coords":[42.8333,12.8333],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":53312.07,"gdp_ano":2023,"co2":5.2682986,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Letônia","iso":"LV","coords":[57.0,25.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":37007.367,"gdp_ano":2023,"co2":3.4600034,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Liechtenstein","iso":"LI","coords":[47.1667,9.5333],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2008,"gdp":null,"gdp_ano":null,"co2":3.9732652,"co2_ano":2023,"ndc_status":"Inativo","ndc_date":""},
+      {"nome":"Lituânia","iso":"LT","coords":[56.0,24.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":46740.41,"gdp_ano":2023,"co2":4.366298,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Luxemburgo","iso":"LU","coords":[49.75,6.1667],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":132846.58,"gdp_ano":2023,"co2":10.5150585,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Malta","iso":"MT","coords":[35.8333,14.5833],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":61125.71,"gdp_ano":2023,"co2":3.4193249,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Montenegro","iso":"ME","coords":[42.5,19.3],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2020,"gdp":27869.65,"gdp_ano":2023,"co2":3.6754034,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"21/02/2025"},
+      {"nome":"México","iso":"MX","coords":[23.0,-102.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2021,"gdp":22142.607,"gdp_ano":2023,"co2":3.7199361,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"17/11/2022"},
+      {"nome":"Noruega","iso":"NO","coords":[62.0,10.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2008,"gdp":90469.81,"gdp_ano":2023,"co2":7.0484023,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"26/06/2025"},
+      {"nome":"Nova Zelândia","iso":"NZ","coords":[-41.0,174.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2008,"gdp":48826.574,"gdp_ano":2023,"co2":5.8226275,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"31/01/2025"},
+      {"nome":"Países Baixos","iso":"NL","coords":[52.5,5.75],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":71446.695,"gdp_ano":2023,"co2":6.558991,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Polônia","iso":"PL","coords":[52.0,20.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":44384.168,"gdp_ano":2023,"co2":7.4628654,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Portugal","iso":"PT","coords":[39.5,-8.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":41755.48,"gdp_ano":2023,"co2":3.5690997,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Reino Unido","iso":"GB","coords":[54.0,-2.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":54542.016,"gdp_ano":2023,"co2":4.4428277,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"30/01/2025"},
+      {"nome":"Romênia","iso":"RO","coords":[46.0,25.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2007,"gdp":40665.527,"gdp_ano":2023,"co2":3.569303,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Suécia","iso":"SE","coords":[62.0,15.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":63114.68,"gdp_ano":2023,"co2":3.464577,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      {"nome":"Suíça","iso":"CH","coords":[47.0,8.0],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2008,"gdp":82557.55,"gdp_ano":2023,"co2":3.6905727,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"29/01/2025"},
+      {"nome":"Tchéquia","iso":"CZ","coords":[49.75,15.5],"tipo":"Possui um Sistema de Comércio de Emissões (SCE)","ano":2005,"gdp":49681.06,"gdp_ano":2023,"co2":7.92107,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2023"},
+      // Países sem SCE (lista completa segue)
+      // Esta lista foi gerada e mesclada programaticamente.
+      {"nome":"Afeganistão","iso":"AF","coords":[33.0,65.0],"gdp":1992.42,"gdp_ano":2023,"co2":0.27,"co2_ano":2023},
+      {"nome":"África do Sul","iso":"ZA","coords":[-29.0,24.0],"gdp":13690.39,"gdp_ano":2023,"co2":7.16,"co2_ano":2023,"ndc_status":"Inativo","ndc_date":""},
+      {"nome":"Albânia","iso":"AL","coords":[41.0,20.0],"gdp":18244.29,"gdp_ano":2023,"co2":1.83,"co2_ano":2023},
+      {"nome":"Andorra","iso":"AD","coords":[42.5,1.6],"gdp":64631.3,"gdp_ano":2023,"co2":5.24,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"08/11/2022"},
+      {"nome":"Angola","iso":"AO","coords":[-12.5,18.5],"gdp":7244.89,"gdp_ano":2023,"co2":0.57,"co2_ano":2023},
+      {"nome":"Anguilla","iso":"AI","coords":[18.25,-63.1667],"co2":10.04,"co2_ano":2023},
+      {"nome":"Antígua e Barbuda","iso":"AG","coords":[17.05,-61.8],"gdp":28967.26,"gdp_ano":2023,"co2":6.91,"co2_ano":2023},
+      {"nome":"Arábia Saudita","iso":"SA","coords":[25.0,45.0],"gdp":55055.4,"gdp_ano":2023,"co2":17.56,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"23/10/2021"},
+      {"nome":"Argélia","iso":"DZ","coords":[28.0,3.0],"gdp":15159.32,"gdp_ano":2023,"co2":3.86,"co2_ano":2023},
+      {"nome":"Argentina","iso":"AR","coords":[-34.0,-64.0],"gdp":27104.98,"gdp_ano":2023,"co2":4.3,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"02/11/2021"},
+      {"nome":"Armênia","iso":"AM","coords":[40.0,45.0],"gdp":19230.19,"gdp_ano":2023,"co2":2.58,"co2_ano":2023},
+      {"nome":"Aruba","iso":"AW","coords":[12.5,-69.9667],"gdp":40516.81,"gdp_ano":2023,"co2":8.04,"co2_ano":2023},
+      {"nome":"Austrália","iso":"AU","coords":[-27.0,133.0],"gdp":59552.88,"gdp_ano":2023,"co2":14.48,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"16/06/2022"},
+      {"nome":"Azerbaijão","iso":"AZ","coords":[40.5,47.5],"gdp":21262.3,"gdp_ano":2023,"co2":4.26,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"10/10/2023"},
+      {"nome":"Bahamas","iso":"BS","coords":[24.25,-76.0],"gdp":33105.61,"gdp_ano":2023,"co2":6.27,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"07/11/2022"},
+      {"nome":"Bahrein","iso":"BH","coords":[26.0,50.55],"gdp":57213.09,"gdp_ano":2023,"co2":23.27,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"18/10/2021"},
+      {"nome":"Bangladesh","iso":"BD","coords":[24.0,90.0],"gdp":8242.4,"gdp_ano":2023,"co2":0.66,"co2_ano":2023},
+      {"nome":"Barbados","iso":"BB","coords":[13.1667,-59.5333],"gdp":19224.46,"gdp_ano":2023,"co2":4.22,"co2_ano":2023},
+      {"nome":"Belarus","iso":"BY","coords":[53.0,28.0],"gdp":27718.32,"gdp_ano":2023,"co2":6.2,"co2_ano":2023},
+      {"nome":"Belize","iso":"BZ","coords":[17.25,-88.75],"gdp":12455.3,"gdp_ano":2023,"co2":1.62,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"14/06/2025"},
+      {"nome":"Benin","iso":"BJ","coords":[9.5,2.25],"gdp":3721.22,"gdp_ano":2023,"co2":0.4,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Bermuda","iso":"BM","coords":[32.3333,-64.75],"gdp":98041.69,"gdp_ano":2023,"co2":8.08,"co2_ano":2023},
+      {"nome":"Butão","iso":"BT","coords":[27.5,90.5],"gdp":14061.31,"gdp_ano":2022,"co2":2.18,"co2_ano":2023},
+      {"nome":"Bolívia","iso":"BO","coords":[-17.0,-65.0],"gdp":9843.97,"gdp_ano":2023,"co2":1.91,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"15/04/2022"},
+      {"nome":"Bonaire, Santo Eustáquio e Saba","iso":"BQ","coords":[12.18,-68.23],"co2":3.85,"co2_ano":2023},
+      {"nome":"Bósnia e Herzegovina","iso":"BA","coords":[44.0,18.0],"gdp":20126.38,"gdp_ano":2023,"co2":6.4,"co2_ano":2023},
+      {"nome":"Botsuana","iso":"BW","coords":[-22.0,24.0],"gdp":18846.25,"gdp_ano":2023,"co2":2.37,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"24/12/2024"},
+      {"nome":"Brasil","iso":"BR","coords":[-10.0,-55.0],"gdp":19018.24,"gdp_ano":2023,"co2":2.2,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"13/11/2024"},
+      {"nome":"Brunei","iso":"BN","coords":[4.5,114.6667],"gdp":76828.4,"gdp_ano":2022,"co2":15.57,"co2_ano":2023},
+      {"nome":"Burkina Faso","iso":"BF","coords":[13.0,-2.0],"gdp":2482.07,"gdp_ano":2023,"co2":0.17,"co2_ano":2023},
+      {"nome":"Burundi","iso":"BI","coords":[-3.5,30.0],"gdp":828.86,"gdp_ano":2023,"co2":0.04,"co2_ano":2023},
+      {"nome":"Camboja","iso":"KH","coords":[13.0,105.0],"gdp":6690.59,"gdp_ano":2023,"co2":0.81,"co2_ano":2023},
+      {"nome":"Cabo Verde","iso":"CV","coords":[16.0,-24.0],"gdp":9288.4,"gdp_ano":2023,"co2":1.15,"co2_ano":2023},
+      {"nome":"Camarões","iso":"CM","coords":[6.0,12.0],"gdp":4870.57,"gdp_ano":2023,"co2":0.38,"co2_ano":2023},
+      {"nome":"Chade","iso":"TD","coords":[15.0,19.0],"gdp":1679.46,"gdp_ano":2023,"co2":0.08,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/10/2021"},
+      {"nome":"Chile","iso":"CL","coords":[-30.0,-71.0],"gdp":29462.64,"gdp_ano":2023,"co2":4.54,"co2_ano":2023},
+      {"nome":"Colômbia","iso":"CO","coords":[4.0,-72.0],"gdp":18692.38,"gdp_ano":2023,"co2":1.54,"co2_ano":2023},
+      {"nome":"Comores","iso":"KM","coords":[-12.1667,44.25],"gdp":3498.8,"gdp_ano":2023,"co2":0.22,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"05/11/2021"},
+      {"nome":"Congo","iso":"CG","coords":[-1.0,15.0],"gdp":6172.29,"gdp_ano":2023,"co2":2.21,"co2_ano":2023},
+      {"nome":"Congo, República Democrática do","iso":"CD","coords":[0.0,25.0],"gdp":1455.84,"gdp_ano":2023,"co2":0.08,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"28/12/2021"},
+      {"nome":"Costa Rica","iso":"CR","coords":[10.0,-84.0],"gdp":26292.77,"gdp_ano":2023,"co2":1.51,"co2_ano":2023},
+      {"nome":"Costa do Marfim","iso":"CI","coords":[8.0,-5.0],"gdp":6485.32,"gdp_ano":2023,"co2":0.44,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"09/05/2022"},
+      {"nome":"Cuba","iso":"CU","coords":[21.5,-80.0],"gdp":null,"gdp_ano":null,"co2":2.45,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"27/02/2025"},
+      {"nome":"Curaçao","iso":"CW","coords":[12.18,-68.97],"co2":6.82,"co2_ano":2023},
+      {"nome":"Djibuti","iso":"DJ","coords":[11.5,43.0],"gdp":6400.62,"gdp_ano":2023,"co2":0.69,"co2_ano":2023},
+      {"nome":"Dominica","iso":"DM","coords":[15.4167,-61.3333],"gdp":17420.25,"gdp_ano":2023,"co2":2.0,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"04/07/2022"},
+      {"nome":"República Dominicana","iso":"DO","coords":[19.0,-70.6667],"gdp":23087.93,"gdp_ano":2023,"co2":2.11,"co2_ano":2023},
+      {"nome":"Equador","iso":"EC","coords":[-2.0,-77.5],"gdp":14472.32,"gdp_ano":2023,"co2":2.21,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"06/02/2025"},
+      {"nome":"Egito","iso":"EG","coords":[27.0,30.0],"gdp":16691.13,"gdp_ano":2023,"co2":2.25,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"26/06/2023"},
+      {"nome":"El Salvador","iso":"SV","coords":[13.8333,-88.9167],"gdp":11404.33,"gdp_ano":2023,"co2":1.25,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"04/01/2022"},
+      {"nome":"Guiné Equatorial","iso":"GQ","coords":[2.0,10.0],"gdp":15688.24,"gdp_ano":2023,"co2":3.73,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"24/10/2022"},
+      {"nome":"Eritreia","iso":"ER","coords":[15.0,39.0],"gdp":1599.4,"gdp_ano":2011,"co2":0.1,"co2_ano":2023},
+      {"nome":"Etiópia","iso":"ET","coords":[8.0,38.0],"gdp":2755.46,"gdp_ano":2023,"co2":0.16,"co2_ano":2023},
+      {"nome":"Ilhas Malvinas","iso":"FK","coords":[-51.75,-59.0],"co2":11.2,"co2_ano":2023},
+      {"nome":"Ilhas Faroé","iso":"FO","coords":[62.0,-7.0],"co2":0.99,"co2_ano":2023},
+      {"nome":"Fiji","iso":"FJ","coords":[-18.0,175.0],"gdp":13652.49,"gdp_ano":2023,"co2":1.76,"co2_ano":2023},
+      {"nome":"Guiana Francesa","iso":"GF","coords":[4.0,-53.0]},
+      {"nome":"Polinésia Francesa","iso":"PF","coords":[-15.0,-140.0],"gdp":null,"gdp_ano":null,"co2":3.39,"co2_ano":2023},
+      {"nome":"Gabão","iso":"GA","coords":[-1.0,11.75],"gdp":18702.69,"gdp_ano":2023,"co2":2.94,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"06/07/2022"},
+      {"nome":"Gâmbia","iso":"GM","coords":[13.4667,-16.5667],"gdp":2932.28,"gdp_ano":2023,"co2":0.28,"co2_ano":2023},
+      {"nome":"Geórgia","iso":"GE","coords":[42.0,43.5],"gdp":22590.53,"gdp_ano":2023,"co2":3.33,"co2_ano":2023},
+      {"nome":"Gana","iso":"GH","coords":[8.0,-2.0],"gdp":6796.47,"gdp_ano":2023,"co2":0.63,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"04/11/2021"},
+      {"nome":"Gibraltar","iso":"GI","coords":[36.1833,-5.3667],"co2":39.38,"co2_ano":2023},
+      {"nome":"Groenlândia","iso":"GL","coords":[72.0,-40.0]},
+      {"nome":"Granada","iso":"GD","coords":[12.1167,-61.6667],"gdp":16946.47,"gdp_ano":2023,"co2":2.38,"co2_ano":2023},
+      {"nome":"Guadalupe","iso":"GP","coords":[16.25,-61.5833]},
+      {"nome":"Guam","iso":"GU","coords":[13.4667,144.7833]},
+      {"nome":"Guatemala","iso":"GT","coords":[15.5,-90.25],"gdp":12389.39,"gdp_ano":2023,"co2":1.13,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"23/05/2022"},
+      {"nome":"Guernsey","iso":"GG","coords":[49.5,-2.56]},
+      {"nome":"Guiné","iso":"GN","coords":[11.0,-10.0],"gdp":3949.34,"gdp_ano":2023,"co2":0.26,"co2_ano":2023},
+      {"nome":"Guiné-Bissau","iso":"GW","coords":[12.0,-15.0],"gdp":2578.8,"gdp_ano":2023,"co2":0.25,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Guiana","iso":"GY","coords":[5.0,-59.0],"gdp":49315.16,"gdp_ano":2023,"co2":4.19,"co2_ano":2023},
+      {"nome":"Haiti","iso":"HT","coords":[19.0,-72.4167],"gdp":2956.46,"gdp_ano":2023,"co2":0.29,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"01/06/2022"},
+      {"nome":"Santa Sé (Cidade do Vaticano)","iso":"VA","coords":[41.9,12.45]},
+      {"nome":"Honduras","iso":"HN","coords":[15.0,-86.5],"gdp":6468.3,"gdp_ano":2023,"co2":1.25,"co2_ano":2023},
+      {"nome":"Hong Kong","iso":"HK","coords":[22.25,114.1667],"gdp":64467.57,"gdp_ano":2023,"co2":5.4,"co2_ano":2023},
+      {"nome":"Índia","iso":"IN","coords":[20.0,77.0],"gdp":9160.06,"gdp_ano":2023,"co2":1.91,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"26/08/2022"},
+      {"nome":"Irã","iso":"IR","coords":[32.0,53.0],"gdp":15912.03,"gdp_ano":2022,"co2":8.09,"co2_ano":2023},
+      {"nome":"Iraque","iso":"IQ","coords":[33.0,44.0],"gdp":12711.06,"gdp_ano":2022,"co2":3.99,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"15/10/2021"},
+      {"nome":"Ilha de Man","iso":"IM","coords":[54.23,-4.55]},
+      {"nome":"Israel","iso":"IL","coords":[31.5,34.75],"gdp":48432.11,"gdp_ano":2023,"co2":7.42,"co2_ano":2023},
+      {"nome":"Jamaica","iso":"JM","coords":[18.25,-77.5],"gdp":10291.31,"gdp_ano":2023,"co2":1.94,"co2_ano":2023},
+      {"nome":"Japão","iso":"JP","coords":[36.0,138.0],"gdp":46157.64,"gdp_ano":2023,"co2":8.57,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"18/02/2025"},
+      {"nome":"Jersey","iso":"JE","coords":[49.21,-2.13]},
+      {"nome":"Jordânia","iso":"JO","coords":[31.0,36.0],"gdp":9362.59,"gdp_ano":2023,"co2":2.45,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Quênia","iso":"KE","coords":[1.0,38.0],"gdp":5682.99,"gdp_ano":2023,"co2":0.3,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"30/04/2025"},
+      {"nome":"Kiribati","iso":"KI","coords":[1.4167,173.0],"gdp":3195.87,"gdp_ano":2023,"co2":0.61,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"02/03/2023"},
+      {"nome":"Coreia do Norte","iso":"KP","coords":[40.0,127.0],"gdp":null,"gdp_ano":null,"co2":1.09,"co2_ano":2023},
+      {"nome":"Kosovo","iso":"XK","coords":[42.58,21.0],"gdp":13642.68,"gdp_ano":2022},
+      {"nome":"Kuwait","iso":"KW","coords":[29.3375,47.6581],"gdp":46458.2,"gdp_ano":2023,"co2":23.47,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Quirguistão","iso":"KG","coords":[41.0,75.0],"gdp":6403.14,"gdp_ano":2022,"co2":1.47,"co2_ano":2023},
+      {"nome":"Laos","iso":"LA","coords":[18.0,105.0],"gdp":8372.16,"gdp_ano":2022,"co2":0.69,"co2_ano":2023},
+      {"nome":"Líbano","iso":"LB","coords":[33.8333,35.8333],"gdp":11474.75,"gdp_ano":2021,"co2":3.03,"co2_ano":2023},
+      {"nome":"Lesoto","iso":"LS","coords":[-29.5,28.5],"gdp":2595.83,"gdp_ano":2023,"co2":1.13,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"05/02/2025"},
+      {"nome":"Libéria","iso":"LR","coords":[6.5,-9.5],"gdp":1616.92,"gdp_ano":2023,"co2":0.17,"co2_ano":2023},
+      {"nome":"Líbia","iso":"LY","coords":[25.0,17.0],"gdp":12478.14,"gdp_ano":2022,"co2":7.39,"co2_ano":2023},
+      {"nome":"Macau","iso":"MO","coords":[22.1667,113.55],"gdp":104961.64,"gdp_ano":2023},
+      {"nome":"Macedônia do Norte","iso":"MK","coords":[41.8333,22.0],"gdp":23584.56,"gdp_ano":2023,"co2":3.73,"co2_ano":2023},
+      {"nome":"Madagáscar","iso":"MG","coords":[-20.0,47.0],"gdp":1643.31,"gdp_ano":2023,"co2":0.16,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"29/01/2024"},
+      {"nome":"Malawi","iso":"MW","coords":[-13.5,34.0],"gdp":1648.44,"gdp_ano":2023,"co2":0.12,"co2_ano":2023},
+      {"nome":"Malásia","iso":"MY","coords":[2.5,112.5],"gdp":32812.3,"gdp_ano":2023,"co2":7.82,"co2_ano":2023},
+      {"nome":"Maldivas","iso":"MV","coords":[3.25,73.0],"gdp":22286.98,"gdp_ano":2022,"co2":2.65,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"27/02/2025"},
+      {"nome":"Mali","iso":"ML","coords":[17.0,-4.0],"gdp":2394.67,"gdp_ano":2023,"co2":0.11,"co2_ano":2023},
+      {"nome":"Ilhas Marshall","iso":"MH","coords":[9.0,168.0],"gdp":6786.7,"gdp_ano":2023,"co2":2.37,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"10/02/2025"},
+      {"nome":"Martinica","iso":"MQ","coords":[14.6667,-61.0]},
+      {"nome":"Mauritânia","iso":"MR","coords":[20.0,-12.0],"gdp":6258.71,"gdp_ano":2023,"co2":1.15,"co2_ano":2023},
+      {"nome":"Maurícia","iso":"MU","coords":[-20.2833,57.55],"gdp":26590.42,"gdp_ano":2023,"co2":2.99,"co2_ano":2023},
+      {"nome":"Mayotte","iso":"YT","coords":[-12.8333,45.1667]},
+      {"nome":"Micronésia","iso":"FM","coords":[6.9167,158.25],"gdp":3886.7,"gdp_ano":2022,"co2":1.12,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"17/10/2022"},
+      {"nome":"Moldova","iso":"MD","coords":[47.0,29.0],"gdp":15855.27,"gdp_ano":2023,"co2":1.9,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"06/05/2025"},
+      {"nome":"Mônaco","iso":"MC","coords":[43.7333,7.4],"gdp":null,"gdp_ano":null,"co2":0.46,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"16/07/2025"},
+      {"nome":"Mongólia","iso":"MN","coords":[46.0,105.0],"gdp":16222.86,"gdp_ano":2023,"co2":11.83,"co2_ano":2023},
+      {"nome":"Montserrat","iso":"MS","coords":[16.75,-62.2]},
+      {"nome":"Marrocos","iso":"MA","coords":[32.0,-5.0],"gdp":8868.71,"gdp_ano":2023,"co2":1.63,"co2_ano":2023},
+      {"nome":"Moçambique","iso":"MZ","coords":[-18.25,35.0],"gdp":1511.64,"gdp_ano":2023,"co2":0.28,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"27/12/2021"},
+      {"nome":"Myanmar","iso":"MM","coords":[22.0,98.0],"gdp":5364.14,"gdp_ano":2023,"co2":0.49,"co2_ano":2023},
+      {"nome":"Namíbia","iso":"NA","coords":[-22.0,17.0],"gdp":10105.51,"gdp_ano":2023,"co2":1.62,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"17/01/2024"},
+      {"nome":"Nauru","iso":"NR","coords":[-0.5333,166.9167],"gdp":12462.84,"gdp_ano":2023,"co2":6.01,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"14/10/2021"},
+      {"nome":"Nepal","iso":"NP","coords":[28.0,84.0],"gdp":4859.8,"gdp_ano":2023,"co2":0.44,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/05/2025"},
+      {"nome":"Nova Caledônia","iso":"NC","coords":[-21.5,165.5]},
+      {"nome":"Nicarágua","iso":"NI","coords":[13.0,-85.0],"gdp":7486.94,"gdp_ano":2023,"co2":1.09,"co2_ano":2023},
+      {"nome":"Níger","iso":"NE","coords":[16.0,8.0],"gdp":1703.4,"gdp_ano":2023,"co2":0.1,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"13/12/2021"},
+      {"nome":"Nigéria","iso":"NG","coords":[10.0,8.0],"gdp":5593.06,"gdp_ano":2023,"co2":0.6,"co2_ano":2023},
+      {"nome":"Niue","iso":"NU","coords":[-19.0333,-169.8667],"ndc_status":"Ativo","ndc_date":"17/07/2025"},
+      {"nome":"Ilha Norfolk","iso":"NF","coords":[-29.0333,167.95]},
+      {"nome":"Ilhas Marianas do Norte","iso":"MP","coords":[15.2,145.75]},
+      {"nome":"Omã","iso":"OM","coords":[21.0,57.0],"gdp":38311.42,"gdp_ano":2022,"co2":17.06,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"29/11/2023"},
+      {"nome":"Paquistão","iso":"PK","coords":[30.0,70.0],"gdp":5439.19,"gdp_ano":2023,"co2":0.9,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"21/10/2021"},
+      {"nome":"Palau","iso":"PW","coords":[7.5,134.5],"gdp":15796.54,"gdp_ano":2022,"co2":7.42,"co2_ano":2023},
+      {"nome":"Palestina","iso":"PS","coords":[32.0,35.25],"gdp":5313.1,"gdp_ano":2022,"co2":0.66,"co2_ano":2023},
+      {"nome":"Panamá","iso":"PA","coords":[9.0,-80.0],"gdp":35863.88,"gdp_ano":2023,"co2":2.76,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"13/06/2024"},
+      {"nome":"Papua-Nova Guiné","iso":"PG","coords":[-6.0,147.0],"gdp":4174.44,"gdp_ano":2023,"co2":0.94,"co2_ano":2023},
+      {"nome":"Paraguai","iso":"PY","coords":[-23.0,-58.0],"gdp":15783.12,"gdp_ano":2023,"co2":1.48,"co2_ano":2023},
+      {"nome":"Peru","iso":"PE","coords":[-10.0,-76.0],"gdp":15294.26,"gdp_ano":2023,"co2":1.95,"co2_ano":2023},
+      {"nome":"Filipinas","iso":"PH","coords":[13.0,122.0],"gdp":9901.06,"gdp_ano":2023,"co2":1.25,"co2_ano":2023},
+      {"nome":"Ilhas Pitcairn","iso":"PN","coords":[-25.0667,-130.1]},
+      {"nome":"Porto Rico","iso":"PR","coords":[18.25,-66.5],"gdp":42994.79,"gdp_ano":2023},
+      {"nome":"Catar","iso":"QA","coords":[25.5,51.25],"gdp":116159.14,"gdp_ano":2023,"co2":37.59,"co2_ano":2023},
+      {"nome":"Rússia","iso":"RU","coords":[60.0,100.0],"gdp":39753.46,"gdp_ano":2023,"co2":12.0,"co2_ano":2023,"ndc_status":"Inativo","ndc_date":""},
+      {"nome":"Ruanda","iso":"RW","coords":[-2.0,30.0],"gdp":3060.03,"gdp_ano":2023,"co2":0.11,"co2_ano":2023},
+      {"nome":"Reunião","iso":"RE","coords":[-21.1,55.6]},
+      {"nome":"São Bartolomeu","iso":"BL","coords":[17.9,-62.8333]},
+      {"nome":"Santa Helena","iso":"SH","coords":[-15.9333,-5.7]},
+      {"nome":"São Cristóvão e Névis","iso":"KN","coords":[17.3333,-62.75],"gdp":30409.4,"gdp_ano":2022,"co2":2.76,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"25/10/2021"},
+      {"nome":"Santa Lúcia","iso":"LC","coords":[13.8833,-61.1333],"gdp":23403.46,"gdp_ano":2023,"co2":2.06,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"06/02/2025"},
+      {"nome":"São Martinho (parte francesa)","iso":"MF","coords":[18.083333,-63.05]},
+      {"nome":"São Pedro e Miquelão","iso":"PM","coords":[46.8333,-56.3333]},
+      {"nome":"São Vicente e Granadinas","iso":"VC","coords":[13.25,-61.2],"gdp":18335.21,"gdp_ano":2023,"co2":1.76,"co2_ano":2023},
+      {"nome":"Samoa","iso":"WS","coords":[-13.5833,-172.3333],"gdp":6304.35,"gdp_ano":2023,"co2":1.15,"co2_ano":2023},
+      {"nome":"San Marino","iso":"SM","coords":[43.7667,12.4167],"gdp":70887.57,"gdp_ano":2022,"co2":13.91,"co2_ano":2023},
+      {"nome":"São Tomé e Príncipe","iso":"ST","coords":[1.0,7.0],"gdp":5541.3,"gdp_ano":2023,"co2":0.58,"co2_ano":2023},
+      {"nome":"Senegal","iso":"SN","coords":[14.0,-14.0],"gdp":4317.23,"gdp_ano":2023,"co2":0.72,"co2_ano":2023},
+      {"nome":"Sérvia","iso":"RS","coords":[44.0,21.0],"gdp":26030.02,"gdp_ano":2023,"co2":5.0,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"24/08/2022"},
+      {"nome":"Seychelles","iso":"SC","coords":[-4.5833,55.6667],"gdp":29468.95,"gdp_ano":2023,"co2":6.83,"co2_ano":2023},
+      {"nome":"Serra Leoa","iso":"SL","coords":[8.5,-11.5],"gdp":3034.22,"gdp_ano":2023,"co2":0.22,"co2_ano":2023},
+      {"nome":"Singapura","iso":"SG","coords":[1.3667,103.8],"gdp":127543.55,"gdp_ano":2023,"co2":7.42,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"10/02/2025"},
+      {"nome":"Sint Maarten (parte holandesa)","iso":"SX","coords":[18.05,-63.083333]},
+      {"nome":"Ilhas Salomão","iso":"SB","coords":[-8.0,159.0],"gdp":2534.03,"gdp_ano":2023,"co2":0.59,"co2_ano":2023},
+      {"nome":"Somália","iso":"SO","coords":[10.0,49.0],"gdp":1402.47,"gdp_ano":2023,"co2":0.04,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"19/06/2025"},
+      {"nome":"Geórgia do Sul e Ilhas Sandwich do Sul","iso":"GS","coords":[-54.5,-37.0]},
+      {"nome":"Sudão do Sul","iso":"SS","coords":[8.0,30.0],"gdp":1131.57,"gdp_ano":2015,"co2":0.16,"co2_ano":2023},
+      {"nome":"Sri Lanka","iso":"LK","coords":[7.0,81.0],"gdp":13029.52,"gdp_ano":2023,"co2":1.13,"co2_ano":2023},
+      {"nome":"Sudão","iso":"SD","coords":[15.0,30.0],"gdp":2469.19,"gdp_ano":2023,"co2":0.35,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"22/09/2022"},
+      {"nome":"Suriname","iso":"SR","coords":[4.0,-56.0],"gdp":19043.7,"gdp_ano":2023,"co2":5.4,"co2_ano":2023},
+      {"nome":"Svalbard e Jan Mayen","iso":"SJ","coords":[78.0,20.0]},
+      {"nome":"Suazilândia","iso":"SZ","coords":[-26.5,31.5],"gdp":10132.19,"gdp_ano":2023,"co2":0.91,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Síria","iso":"SY","coords":[35.0,38.0],"gdp":4454.85,"gdp_ano":2020,"co2":1.05,"co2_ano":2023},
+      {"nome":"Taiwan","iso":"TW","coords":[23.5,121.0],"co2":11.23,"co2_ano":2023},
+      {"nome":"Tajiquistão","iso":"TJ","coords":[39.0,71.0],"gdp":4472.32,"gdp_ano":2022,"co2":0.36,"co2_ano":2023},
+      {"nome":"Tanzânia","iso":"TZ","coords":[-6.0,35.0],"gdp":3620.79,"gdp_ano":2023,"co2":0.2,"co2_ano":2023},
+      {"nome":"Tailândia","iso":"TH","coords":[15.0,100.0],"gdp":21142.66,"gdp_ano":2023,"co2":3.86,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"02/11/2022"},
+      {"nome":"Timor-Leste","iso":"TL","coords":[-8.55,125.5167],"gdp":4328.51,"gdp_ano":2022,"co2":0.44,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"08/11/2022"},
+      {"nome":"Togo","iso":"TG","coords":[8.0,1.1667],"gdp":2767.52,"gdp_ano":2023,"co2":0.34,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/10/2021"},
+      {"nome":"Toquelau","iso":"TK","coords":[-9.0,-172.0]},
+      {"nome":"Tonga","iso":"TO","coords":[-20.0,-175.0],"gdp":6901.74,"gdp_ano":2023,"co2":1.54,"co2_ano":2023},
+      {"nome":"Trindade e Tobago","iso":"TT","coords":[11.0,-61.0],"gdp":31705.83,"gdp_ano":2023,"co2":21.63,"co2_ano":2023},
+      {"nome":"Tunísia","iso":"TN","coords":[34.0,9.0],"gdp":12552.99,"gdp_ano":2023,"co2":2.51,"co2_ano":2023},
+      {"nome":"Turquia","iso":"TR","coords":[39.0,35.0],"gdp":34609.91,"gdp_ano":2023,"co2":5.48,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"13/04/2023"},
+      {"nome":"Turcomenistão","iso":"TM","coords":[40.0,60.0],"gdp":17866.4,"gdp_ano":2022,"co2":14.73,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"30/01/2023"},
+      {"nome":"Ilhas Turcas e Caicos","iso":"TC","coords":[21.75,-71.5833],"gdp":30588.4,"gdp_ano":2022,"co2":4.54,"co2_ano":2023},
+      {"nome":"Tuvalu","iso":"TV","coords":[-8.0,178.0],"gdp":5812.39,"gdp_ano":2022,"co2":1.0,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"16/11/2022"},
+      {"nome":"Uganda","iso":"UG","coords":[1.0,32.0],"gdp":2791.06,"gdp_ano":2023,"co2":0.14,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"12/09/2022"},
+      {"nome":"Ucrânia","iso":"UA","coords":[49.0,32.0],"gdp":15885.23,"gdp_ano":2022,"co2":4.31,"co2_ano":2023},
+      {"nome":"Emirados Árabes Unidos","iso":"AE","coords":[24.0,54.0],"gdp":68577.54,"gdp_ano":2022,"co2":20.67,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"06/11/2024"},
+      {"nome":"Uruguai","iso":"UY","coords":[-33.0,-56.0],"gdp":31019.31,"gdp_ano":2023,"co2":2.12,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"30/12/2024"},
+      {"nome":"Uzbequistão","iso":"UZ","coords":[41.0,64.0],"gdp":10007.69,"gdp_ano":2023,"co2":3.73,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"30/10/2021"},
+      {"nome":"Vanuatu","iso":"VU","coords":[-16.0,167.0],"gdp":3118.4,"gdp_ano":2023,"co2":0.55,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"09/08/2022"},
+      {"nome":"Venezuela","iso":"VE","coords":[8.0,-66.0],"gdp":null,"gdp_ano":null,"co2":3.51,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"09/11/2021"},
+      {"nome":"Vietnã","iso":"VN","coords":[16.0,106.0],"gdp":13491.88,"gdp_ano":2022,"co2":3.48,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"08/11/2022"},
+      {"nome":"Ilhas Virgens Britânicas","iso":"VG","coords":[18.5,-64.5]},
+      {"nome":"Ilhas Virgens Americanas","iso":"VI","coords":[18.3333,-64.8333]},
+      {"nome":"Wallis e Futuna","iso":"WF","coords":[-13.3,-176.2]},
+      {"nome":"Saara Ocidental","iso":"EH","coords":[24.5,-13.0]},
+      {"nome":"Iêmen","iso":"YE","coords":[15.0,48.0],"gdp":null,"gdp_ano":null,"co2":0.3,"co2_ano":2023},
+      {"nome":"Zâmbia","iso":"ZM","coords":[-15.0,30.0],"gdp":3673.48,"gdp_ano":2023,"co2":0.35,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"10/03/2025"},
+      {"nome":"Zimbábue","iso":"ZW","coords":[-20.0,30.0],"gdp":3442.25,"gdp_ano":2023,"co2":0.77,"co2_ano":2023,"ndc_status":"Ativo","ndc_date":"10/02/2025"}
+    ];
+
+    allCountriesData.forEach(function(pais) {
+        if (!pais.coords || pais.coords.some(c => c === null)) return;
+        const hasSce = !!pais.tipo;
+        const icon = createCountryIcon(hasSce);
+        const marker = L.marker(pais.coords, { icon: icon }).bindTooltip(pais.nome).addTo(map);
+
+        marker.on('click', (e) => {
+            openInfoPanel(pais);
+            L.DomEvent.stopPropagation(e);
+        });
+
+        if (pais.nome) {
+            markers[pais.nome.toLowerCase()] = marker;
+        }
+    });
+  </script>
+</body>
+</html>
