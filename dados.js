@@ -1,11 +1,4 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-
-\f0\fs24 \cf0     const allCountriesData = [\
+const allCountriesData = [\
       \{ "nome": "Alemanha", "iso": "DE", "coords": [51.0, 9.0], "tipo": "Possui um Sistema de Com\'e9rcio de Emiss\'f5es (SCE)", "ano": 2005, "gdp": 63578.14, "gdp_ano": 2023, "co2": 7.051025, "co2_ano": 2023, "ndc_status": "Ativo", "ndc_date": "19/10/2023" \},\
       \{ "nome": "\'c1ustria", "iso": "AT", "coords": [47.3333, 13.3333], "tipo": "Possui um Sistema de Com\'e9rcio de Emiss\'f5es (SCE)", "ano": 2005, "gdp": 65015.133, "gdp_ano": 2023, "co2": 6.415725, "co2_ano": 2023, "ndc_status": "Ativo", "ndc_date": "19/10/2023" \},\
       \{ "nome": "B\'e9lgica", "iso": "BE", "coords": [50.8333, 4.0], "tipo": "Possui um Sistema de Com\'e9rcio de Emiss\'f5es (SCE)", "ano": 2005, "gdp": 64185.848, "gdp_ano": 2023, "co2": 7.1177025, "co2_ano": 2023, "ndc_status": "Ativo", "ndc_date": "19/10/2023" \},\
